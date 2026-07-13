@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig("files/config/app/config.yaml")
+	cfg, err := config.LoadConfig(config.ConfigPath())
 	if err != nil {
 		log.Fatalln("Err load config, err: ", err)
 	}
@@ -19,6 +20,7 @@ func main() {
 		var err error
 		connManager, err = postgres.NewConnManager(
 			cfg.Database.Host,
+			cfg.Database.Port,
 			cfg.Database.DbName,
 			cfg.Database.Username,
 			cfg.Database.Password)
@@ -32,9 +34,16 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	log.Println("Server is ready listen to port :8080")
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok"}`)
+	})
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	log.Printf("Server is ready, listening on %s", addr)
+
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalln(err)
 	}
 }
