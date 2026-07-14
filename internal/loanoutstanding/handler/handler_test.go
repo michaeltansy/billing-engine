@@ -40,7 +40,7 @@ func TestOutstandingOK(t *testing.T) {
 	svc := mockservice.NewMockService(ctrl)
 	svc.EXPECT().
 		GetOutstanding(gomock.Any(), loanoutstanding.Request{LoanID: 100}).
-		Return(loanoutstanding.Response{LoanID: 100, Outstanding: 5_170_000}, nil).
+		Return(loanoutstanding.Response{LoanID: 100, Outstanding: 5170000}, nil).
 		Times(1)
 
 	rec := serve(t, svc, "/loans/100/outstanding")
@@ -53,7 +53,7 @@ func TestOutstandingOK(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Outstanding != 5_170_000 {
+	if got.Outstanding != 5170000 {
 		t.Errorf("outstanding = %d, want 5170000", got.Outstanding)
 	}
 }

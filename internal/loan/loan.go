@@ -1,5 +1,7 @@
 package loan
 
+import "context"
+
 // Status is the stored lifecycle state of a loan.
 //
 // The stored DELINQUENT flag is only ever written inside a payment transaction,
@@ -13,3 +15,19 @@ const (
 	StatusDelinquent Status = "DELINQUENT"
 	StatusClosed     Status = "CLOSED"
 )
+
+type Request struct {
+	Terms Terms
+}
+
+type Response struct {
+	LoanID       int64
+	TotalPayable int64
+	LoanStatus   Status
+	Installments []Installment
+}
+
+//go:generate mockgen -source=./loan.go -destination=mockservice/mock_service.go -package=mockservice github.com/michaeltansy/billing-engine/internal/loan Service
+type Service interface {
+	CreateLoan(ctx context.Context, r Request) (Response, error)
+}
