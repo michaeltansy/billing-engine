@@ -73,6 +73,9 @@ CREATE TABLE payments (
 ```
 
 # API
+## Collection
+[billing-engine-collection.yaml](https://github.com/user-attachments/files/29997287/billing-engine-collection.yaml)
+
 ## Contract
 ### Create Loan
 ```
