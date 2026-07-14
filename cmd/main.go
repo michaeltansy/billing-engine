@@ -7,6 +7,10 @@ import (
 
 	"github.com/michaeltansy/billing-engine/config"
 	postgres "github.com/michaeltansy/billing-engine/database/postgres"
+	"github.com/michaeltansy/billing-engine/internal/clock"
+	delinquencydbstore "github.com/michaeltansy/billing-engine/internal/delinquency/dbstore"
+	delinquencyhandler "github.com/michaeltansy/billing-engine/internal/delinquency/handler"
+	delinquencyservice "github.com/michaeltansy/billing-engine/internal/delinquency/service"
 	outstandingdbstore "github.com/michaeltansy/billing-engine/internal/loanoutstanding/dbstore"
 	outstandinghandler "github.com/michaeltansy/billing-engine/internal/loanoutstanding/handler"
 	outstandingservice "github.com/michaeltansy/billing-engine/internal/loanoutstanding/service"
@@ -35,15 +39,26 @@ func main() {
 		defer connManager.Close()
 	}
 
+	// The system clock is injected rather than reached for, so delinquency is a
+	// pure function of (schedule, now) and can be tested at the day boundary.
+	systemClock := clock.System{}
+
 	outstandingStore := outstandingdbstore.NewDBStore(connManager.GetDB())
 	outstandingSvc := outstandingservice.NewService(outstandingStore)
 	outstandingHandler := outstandinghandler.NewHandler(outstandinghandler.Dependencies{
 		LoanOutstandingSvc: outstandingSvc,
 	}, outstandinghandler.WithTimeoutOptions(cfg.API["loan_outstanding"].ReqTimeoutInMS))
 
+	delinquencyStore := delinquencydbstore.NewDBStore(connManager.GetDB())
+	delinquencySvc := delinquencyservice.NewService(delinquencyStore, systemClock)
+	delinquencyHandler := delinquencyhandler.NewHandler(delinquencyhandler.Dependencies{
+		DelinquencySvc: delinquencySvc,
+	}, delinquencyhandler.WithTimeoutOptions(cfg.API["delinquency"].ReqTimeoutInMS))
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(outstandinghandler.Route, outstandingHandler.Handle)
+	mux.HandleFunc(delinquencyhandler.Route, delinquencyHandler.Handle)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
