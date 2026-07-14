@@ -9,3 +9,5 @@ database:
 api:
   loan_outstanding:
     req_timeout_in_ms: 1000
+  delinquency:
+    req_timeout_in_ms: 1000
