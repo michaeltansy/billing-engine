@@ -49,3 +49,18 @@ func (mr *MockDBStoreMockRecorder) CreateLoan(ctx, terms, schedule interface{}) 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLoan", reflect.TypeOf((*MockDBStore)(nil).CreateLoan), ctx, terms, schedule)
 }
+
+// GetSchedule mocks base method.
+func (m *MockDBStore) GetSchedule(ctx context.Context, loanID int64) (loan.ScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchedule", ctx, loanID)
+	ret0, _ := ret[0].(loan.ScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchedule indicates an expected call of GetSchedule.
+func (mr *MockDBStoreMockRecorder) GetSchedule(ctx, loanID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchedule", reflect.TypeOf((*MockDBStore)(nil).GetSchedule), ctx, loanID)
+}

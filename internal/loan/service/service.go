@@ -14,24 +14,37 @@ type Service struct {
 //go:generate mockgen -source=./service.go -destination=./mock_dbstore.go -package=service github.com/michaeltansy/billing-engine/internal/loan/service DBStore
 type DBStore interface {
 	CreateLoan(ctx context.Context, terms loan.Terms, schedule loan.Schedule) (int64, error)
+
+	// GetSchedule returns every week of the loan with its settled state, ordered by
+	// week. It returns apierr.ErrLoanNotFound when the loan does not exist.
+	GetSchedule(ctx context.Context, loanID int64) (loan.ScheduleResponse, error)
 }
 
-func (s *Service) CreateLoan(ctx context.Context, r loan.Request) (loan.Response, error) {
+// GetSchedule returns the loan's full schedule with per-week status (F5).
+//
+// This is a plain read of the materialised schedule, not a regeneration of it:
+// the installments were fixed at creation, and weeks that have been paid carry
+// that fact. Regenerating here would silently discard every payment.
+func (s *Service) GetSchedule(ctx context.Context, r loan.ScheduleRequest) (loan.ScheduleResponse, error) {
+	return s.dbStore.GetSchedule(ctx, r.LoanID)
+}
+
+func (s *Service) CreateLoan(ctx context.Context, r loan.CreateRequest) (loan.CreateResponse, error) {
 	terms := r.Terms
 	terms.TenorWeeks = loan.TenorWeeks
 
 	if err := ValidateTerms(terms); err != nil {
-		return loan.Response{}, err
+		return loan.CreateResponse{}, err
 	}
 
 	schedule := loan.GenerateSchedule(terms)
 
 	loanID, err := s.dbStore.CreateLoan(ctx, terms, schedule)
 	if err != nil {
-		return loan.Response{}, err
+		return loan.CreateResponse{}, err
 	}
 
-	return loan.Response{
+	return loan.CreateResponse{
 		LoanID:       loanID,
 		TotalPayable: schedule.TotalPayable,
 		LoanStatus:   loan.StatusActive,

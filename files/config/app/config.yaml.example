@@ -9,6 +9,8 @@ database:
 api:
   loan_creation:
     req_timeout_in_ms: 2000
+  loan_schedule:
+    req_timeout_in_ms: 1000
   loan_outstanding:
     req_timeout_in_ms: 1000
   delinquency:

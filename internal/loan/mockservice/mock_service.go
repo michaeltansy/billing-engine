@@ -36,10 +36,10 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // CreateLoan mocks base method.
-func (m *MockService) CreateLoan(ctx context.Context, r loan.Request) (loan.Response, error) {
+func (m *MockService) CreateLoan(ctx context.Context, r loan.CreateRequest) (loan.CreateResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateLoan", ctx, r)
-	ret0, _ := ret[0].(loan.Response)
+	ret0, _ := ret[0].(loan.CreateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -48,4 +48,19 @@ func (m *MockService) CreateLoan(ctx context.Context, r loan.Request) (loan.Resp
 func (mr *MockServiceMockRecorder) CreateLoan(ctx, r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLoan", reflect.TypeOf((*MockService)(nil).CreateLoan), ctx, r)
+}
+
+// GetSchedule mocks base method.
+func (m *MockService) GetSchedule(ctx context.Context, r loan.ScheduleRequest) (loan.ScheduleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchedule", ctx, r)
+	ret0, _ := ret[0].(loan.ScheduleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchedule indicates an expected call of GetSchedule.
+func (mr *MockServiceMockRecorder) GetSchedule(ctx, r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchedule", reflect.TypeOf((*MockService)(nil).GetSchedule), ctx, r)
 }

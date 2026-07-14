@@ -11,9 +11,9 @@ import (
 	delinquencydbstore "github.com/michaeltansy/billing-engine/internal/delinquency/dbstore"
 	delinquencyhandler "github.com/michaeltansy/billing-engine/internal/delinquency/handler"
 	delinquencyservice "github.com/michaeltansy/billing-engine/internal/delinquency/service"
-	creationdbstore "github.com/michaeltansy/billing-engine/internal/loan/dbstore"
-	creationhandler "github.com/michaeltansy/billing-engine/internal/loan/handler"
-	creationservice "github.com/michaeltansy/billing-engine/internal/loan/service"
+	loandbstore "github.com/michaeltansy/billing-engine/internal/loan/dbstore"
+	loanhandler "github.com/michaeltansy/billing-engine/internal/loan/handler"
+	loanservice "github.com/michaeltansy/billing-engine/internal/loan/service"
 	outstandingdbstore "github.com/michaeltansy/billing-engine/internal/loanoutstanding/dbstore"
 	outstandinghandler "github.com/michaeltansy/billing-engine/internal/loanoutstanding/handler"
 	outstandingservice "github.com/michaeltansy/billing-engine/internal/loanoutstanding/service"
@@ -67,15 +67,16 @@ func main() {
 		PaymentSvc: paymentSvc,
 	}, paymenthandler.WithTimeoutOptions(cfg.API["payment"].ReqTimeoutInMS))
 
-	creationStore := creationdbstore.NewDBStore(connManager.GetDB())
-	creationSvc := creationservice.NewService(creationStore)
-	creationHandler := creationhandler.NewHandler(creationhandler.Dependencies{
-		LoanCreationSvc: creationSvc,
-	}, creationhandler.WithTimeoutOptions(cfg.API["loan_creation"].ReqTimeoutInMS))
+	loanStore := loandbstore.NewDBStore(connManager.GetDB())
+	loanSvc := loanservice.NewService(loanStore)
+	loanHandler := loanhandler.NewHandler(loanhandler.Dependencies{
+		LoanSvc: loanSvc,
+	}, loanhandler.WithTimeoutOptions(cfg.API["loan_creation"].ReqTimeoutInMS))
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc(creationhandler.Route, creationHandler.Handle)
+	mux.HandleFunc(loanhandler.CreateRoute, loanHandler.Handle)
+	mux.HandleFunc(loanhandler.ScheduleRoute, loanHandler.HandleSchedule)
 	mux.HandleFunc(outstandinghandler.Route, outstandingHandler.Handle)
 	mux.HandleFunc(delinquencyhandler.Route, delinquencyHandler.Handle)
 	mux.HandleFunc(paymenthandler.Route, paymentHandler.Handle)

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/michaeltansy/billing-engine/internal/apierr"
 	"github.com/michaeltansy/billing-engine/internal/loan"
 	"github.com/michaeltansy/billing-engine/internal/loan/handler"
 	"github.com/michaeltansy/billing-engine/internal/loan/mockservice"
@@ -24,9 +25,9 @@ func TestMain(m *testing.M) {
 func serve(t *testing.T, svc loan.Service, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	h := handler.NewHandler(handler.Dependencies{LoanCreationSvc: svc})
+	h := handler.NewHandler(handler.Dependencies{LoanSvc: svc})
 	mux := http.NewServeMux()
-	mux.HandleFunc(handler.Route, h.Handle)
+	mux.HandleFunc(handler.CreateRoute, h.Handle)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/loans", strings.NewReader(body)))
@@ -45,8 +46,8 @@ func TestCreateLoan201(t *testing.T) {
 
 	svc := mockservice.NewMockService(ctrl)
 	svc.EXPECT().
-		CreateLoan(gomock.Any(), loan.Request{Terms: wantTerms}).
-		Return(loan.Response{
+		CreateLoan(gomock.Any(), loan.CreateRequest{Terms: wantTerms}).
+		Return(loan.CreateResponse{
 			LoanID:       100,
 			TotalPayable: 5500000,
 			LoanStatus:   loan.StatusActive,
@@ -121,12 +122,94 @@ func TestZeroRateIsNotTreatedAsMissing(t *testing.T) {
 	svc := mockservice.NewMockService(ctrl)
 	svc.EXPECT().
 		CreateLoan(gomock.Any(), gomock.Any()).
-		Return(loan.Response{LoanID: 1, TotalPayable: 5000000, LoanStatus: loan.StatusActive}, nil).
+		Return(loan.CreateResponse{LoanID: 1, TotalPayable: 5000000, LoanStatus: loan.StatusActive}, nil).
 		Times(1)
 
 	rec := serve(t, svc, `{"principal":5000000,"rate_bps":0,"start_date":"2026-07-13"}`)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func serveSchedule(t *testing.T, svc loan.Service, target string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	h := handler.NewHandler(handler.Dependencies{LoanSvc: svc})
+	mux := http.NewServeMux()
+	mux.HandleFunc(handler.ScheduleRoute, h.HandleSchedule)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+
+	return rec
+}
+
+func TestGetSchedule200(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	svc := mockservice.NewMockService(ctrl)
+	svc.EXPECT().
+		GetSchedule(gomock.Any(), loan.ScheduleRequest{LoanID: 100}).
+		Return(loan.ScheduleResponse{
+			LoanID:     100,
+			LoanStatus: loan.StatusDelinquent,
+			Installments: []loan.ScheduleEntry{
+				{WeekNumber: 1, DueDate: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), Amount: 110000, Status: loan.InstallmentPaid},
+				{WeekNumber: 2, DueDate: time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC), Amount: 110000, Status: loan.InstallmentPending},
+			},
+		}, nil).
+		Times(1)
+
+	rec := serveSchedule(t, svc, "/loans/100/schedule")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+
+	var got handler.ScheduleResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decoding body: %v", err)
+	}
+
+	if got.LoanStatus != loan.StatusDelinquent {
+		t.Errorf("loan_status = %s, want DELINQUENT", got.LoanStatus)
+	}
+	if len(got.Installments) != 2 {
+		t.Fatalf("installments = %d, want 2", len(got.Installments))
+	}
+	// Per-week status is the whole point of F5: a paid week must read back PAID.
+	if got.Installments[0].Status != loan.InstallmentPaid {
+		t.Errorf("week 1 status = %s, want PAID", got.Installments[0].Status)
+	}
+	if got.Installments[0].DueDate != "2026-07-20" {
+		t.Errorf("week 1 due_date = %q, want 2026-07-20", got.Installments[0].DueDate)
+	}
+}
+
+func TestGetScheduleLoanNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	svc := mockservice.NewMockService(ctrl)
+	svc.EXPECT().GetSchedule(gomock.Any(), gomock.Any()).
+		Return(loan.ScheduleResponse{}, apierr.ErrLoanNotFound).Times(1)
+
+	rec := serveSchedule(t, svc, "/loans/404/schedule")
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404; body %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetScheduleMalformedLoanID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	svc := mockservice.NewMockService(ctrl)
+	svc.EXPECT().GetSchedule(gomock.Any(), gomock.Any()).Times(0)
+
+	for _, target := range []string{"/loans/abc/schedule", "/loans/0/schedule", "/loans/-1/schedule"} {
+		if rec := serveSchedule(t, svc, target); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", target, rec.Code)
+		}
 	}
 }

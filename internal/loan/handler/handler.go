@@ -15,7 +15,7 @@ import (
 const (
 	DefaultRequestTimeoutInMS = 1000
 
-	Route = "POST /loans"
+	CreateRoute = "POST /loans"
 
 	dateLayout = "2006-01-02"
 
@@ -28,7 +28,7 @@ type Handler struct {
 }
 
 type Dependencies struct {
-	LoanCreationSvc loan.Service
+	LoanSvc loan.Service
 }
 
 type config struct {
@@ -41,11 +41,13 @@ type CreateLoanRequest struct {
 	StartDate *string `json:"start_date"`
 }
 
+// Installment is the wire shape of one week, shared by the create and schedule
+// responses so both describe a week identically.
 type Installment struct {
-	Week    int    `json:"week"`
-	DueDate string `json:"due_date"`
-	Amount  int64  `json:"amount"`
-	Status  string `json:"status"`
+	Week    int                    `json:"week"`
+	DueDate string                 `json:"due_date"`
+	Amount  int64                  `json:"amount"`
+	Status  loan.InstallmentStatus `json:"status"`
 }
 
 type CreateLoanResponse struct {
@@ -65,7 +67,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.deps.LoanCreationSvc.CreateLoan(ctx, req)
+	resp, err := h.deps.LoanSvc.CreateLoan(ctx, req)
 	if err != nil {
 		apierr.Write(w, err)
 		return
@@ -77,7 +79,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 			Week:    inst.WeekNumber,
 			DueDate: inst.DueDate.Format(dateLayout),
 			Amount:  inst.Amount,
-			Status:  "PENDING",
+			Status:  loan.InstallmentPending,
 		})
 	}
 
@@ -89,32 +91,32 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func parseRequest(r *http.Request) (loan.Request, error) {
+func parseRequest(r *http.Request) (loan.CreateRequest, error) {
 	var body CreateLoanRequest
 
 	dec := json.NewDecoder(io.LimitReader(r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(&body); err != nil {
-		return loan.Request{}, apierr.Malformed("body must be a JSON object with principal, rate_bps and start_date")
+		return loan.CreateRequest{}, apierr.Malformed("body must be a JSON object with principal, rate_bps and start_date")
 	}
 
 	if body.Principal == nil {
-		return loan.Request{}, apierr.Malformed("principal is required")
+		return loan.CreateRequest{}, apierr.Malformed("principal is required")
 	}
 	if body.RateBps == nil {
-		return loan.Request{}, apierr.Malformed("rate_bps is required")
+		return loan.CreateRequest{}, apierr.Malformed("rate_bps is required")
 	}
 	if body.StartDate == nil {
-		return loan.Request{}, apierr.Malformed("start_date is required")
+		return loan.CreateRequest{}, apierr.Malformed("start_date is required")
 	}
 
 	startDate, err := time.ParseInLocation(dateLayout, *body.StartDate, time.UTC)
 	if err != nil {
-		return loan.Request{}, apierr.Malformed("start_date must be a calendar date, e.g. 2026-07-13")
+		return loan.CreateRequest{}, apierr.Malformed("start_date must be a calendar date, e.g. 2026-07-13")
 	}
 
-	return loan.Request{
+	return loan.CreateRequest{
 		Terms: loan.Terms{
 			Principal: *body.Principal,
 			RateBps:   *body.RateBps,

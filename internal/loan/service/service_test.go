@@ -49,7 +49,7 @@ func TestCreateLoanForcesProductTenor(t *testing.T) {
 
 			svc := service.NewService(store)
 
-			got, err := svc.CreateLoan(context.Background(), loan.Request{Terms: tc.terms})
+			got, err := svc.CreateLoan(context.Background(), loan.CreateRequest{Terms: tc.terms})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -86,7 +86,7 @@ func TestCreateLoanGeneratesFullSchedule(t *testing.T) {
 
 	svc := service.NewService(store)
 
-	got, err := svc.CreateLoan(context.Background(), loan.Request{Terms: v1Terms()})
+	got, err := svc.CreateLoan(context.Background(), loan.CreateRequest{Terms: v1Terms()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCreateLoanRejectsInvalidTerms(t *testing.T) {
 
 			svc := service.NewService(store)
 
-			_, err := svc.CreateLoan(context.Background(), loan.Request{Terms: tc.terms})
+			_, err := svc.CreateLoan(context.Background(), loan.CreateRequest{Terms: tc.terms})
 			if !errors.Is(err, apierr.ErrMalformedRequest) {
 				t.Fatalf("err = %v, want ErrMalformedRequest", err)
 			}
@@ -146,12 +146,65 @@ func TestCreateLoanAcceptsZeroInterest(t *testing.T) {
 
 	svc := service.NewService(store)
 
-	got, err := svc.CreateLoan(context.Background(), loan.Request{Terms: fromClient})
+	got, err := svc.CreateLoan(context.Background(), loan.CreateRequest{Terms: fromClient})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if got.TotalPayable != 5000000 {
 		t.Errorf("total_payable = %d, want 5000000 (no interest)", got.TotalPayable)
+	}
+}
+
+// GetSchedule reads back the materialised schedule, including weeks already paid.
+// It must never regenerate: regeneration would reset every PAID week to PENDING.
+func TestGetSchedule(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	want := loan.ScheduleResponse{
+		LoanID:     100,
+		LoanStatus: loan.StatusDelinquent,
+		Installments: []loan.ScheduleEntry{
+			{WeekNumber: 1, DueDate: start, Amount: 110000, Status: loan.InstallmentPaid},
+			{WeekNumber: 2, DueDate: start.AddDate(0, 0, 7), Amount: 110000, Status: loan.InstallmentPending},
+		},
+	}
+
+	store := service.NewMockDBStore(ctrl)
+	store.EXPECT().GetSchedule(gomock.Any(), int64(100)).Return(want, nil).Times(1)
+
+	svc := service.NewService(store)
+
+	got, err := svc.GetSchedule(context.Background(), loan.ScheduleRequest{LoanID: 100})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.LoanStatus != loan.StatusDelinquent {
+		t.Errorf("loan_status = %s, want DELINQUENT", got.LoanStatus)
+	}
+	if len(got.Installments) != 2 {
+		t.Fatalf("installments = %d, want 2", len(got.Installments))
+	}
+	if got.Installments[0].Status != loan.InstallmentPaid {
+		t.Errorf("week 1 status = %s, want PAID", got.Installments[0].Status)
+	}
+	if got.Installments[1].Status != loan.InstallmentPending {
+		t.Errorf("week 2 status = %s, want PENDING", got.Installments[1].Status)
+	}
+}
+
+func TestGetScheduleLoanNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	store := service.NewMockDBStore(ctrl)
+	store.EXPECT().GetSchedule(gomock.Any(), int64(404)).
+		Return(loan.ScheduleResponse{}, apierr.ErrLoanNotFound).Times(1)
+
+	svc := service.NewService(store)
+
+	_, err := svc.GetSchedule(context.Background(), loan.ScheduleRequest{LoanID: 404})
+	if !errors.Is(err, apierr.ErrLoanNotFound) {
+		t.Fatalf("err = %v, want ErrLoanNotFound", err)
 	}
 }
