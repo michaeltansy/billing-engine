@@ -27,7 +27,7 @@ COPY --from=builder /app/app .
 COPY --from=builder /app/files ./files
 
 # Expose the application port
-EXPOSE 8080
+EXPOSE 8081
 
 # Run the application
 CMD ["./app"]

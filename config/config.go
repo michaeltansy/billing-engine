@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"gopkg.in/yaml.v2"
@@ -35,22 +37,24 @@ type APIConfig struct {
 	ReqTimeoutInMS int `yaml:"req_timeout_in_ms"`
 }
 
-// ConfigPath returns the config file to load: $CONFIG_PATH when set, otherwise
-// the in-repo default. Containers set CONFIG_PATH; local runs need no env at all.
+const defaultConfigRel = "files/config/app/config.yaml"
+
 func ConfigPath() string {
 	if p := os.Getenv("CONFIG_PATH"); p != "" {
 		return p
 	}
-	return "files/config/app/config.yaml"
+
+	if root, err := moduleRoot(); err == nil {
+		return filepath.Join(root, defaultConfigRel)
+	}
+
+	return defaultConfigRel
 }
 
-// LoadConfig reads a YAML file and unmarshals it into a Config struct, then
-// applies environment overrides.
-//
-// The YAML holds the local-development defaults; the environment holds whatever
-// the deployment differs on. That split is what lets one image run unchanged in
-// Compose (where the database answers to `db`) and on a laptop (`localhost`)
-// without a bind mount rewriting the file underneath it.
+func moduleRoot() (string, error) {
+	return "", errors.New("not implemented")
+}
+
 func LoadConfig(filename string) (*Config, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
