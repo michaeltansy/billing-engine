@@ -32,12 +32,6 @@ func (cm *defaultConnManager) Close() error {
 	return cm.dbConn.Close()
 }
 
-// NewConnManager opens a Postgres connection pool and verifies it with a Ping.
-//
-// *sqlx.DB is itself a pool and is safe for concurrent use by many goroutines:
-// each request borrows a connection and returns it when done. The pool bounds
-// how many payment requests can hit Postgres at once, while the database
-// enforces correctness (see the unique constraints in sql/init.sql).
 func NewConnManager(host string, port int, dbName, user, password string, options ...Option) (ConnManager, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s dbname=%s password=%s sslmode=disable TimeZone=UTC",
@@ -68,11 +62,8 @@ func NewConnManager(host string, port int, dbName, user, password string, option
 	return cm, nil
 }
 
-// Option customises the connection pool, following the functional options
-// pattern used by the HTTP handlers.
 type Option func(*defaultConnManager)
 
-// WithMaxOpenConns overrides the maximum number of open connections.
 func WithMaxOpenConns(n int) Option {
 	return Option(func(cm *defaultConnManager) {
 		if n <= 0 {
@@ -82,7 +73,6 @@ func WithMaxOpenConns(n int) Option {
 	})
 }
 
-// WithMaxIdleConns overrides the number of idle connections kept warm.
 func WithMaxIdleConns(n int) Option {
 	return Option(func(cm *defaultConnManager) {
 		if n <= 0 {
@@ -92,7 +82,6 @@ func WithMaxIdleConns(n int) Option {
 	})
 }
 
-// WithConnMaxLifetime overrides how long a connection may be reused.
 func WithConnMaxLifetime(d time.Duration) Option {
 	return Option(func(cm *defaultConnManager) {
 		if d <= 0 {

@@ -1,0 +1,11 @@
+server:
+  port: 8080
+database:
+  host: localhost
+  port: 5432
+  username: username
+  password: pwd
+  dbname: billing
+api:
+  loan_outstanding:
+    req_timeout_in_ms: 1000
