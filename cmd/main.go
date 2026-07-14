@@ -14,6 +14,9 @@ import (
 	outstandingdbstore "github.com/michaeltansy/billing-engine/internal/loanoutstanding/dbstore"
 	outstandinghandler "github.com/michaeltansy/billing-engine/internal/loanoutstanding/handler"
 	outstandingservice "github.com/michaeltansy/billing-engine/internal/loanoutstanding/service"
+	paymentdbstore "github.com/michaeltansy/billing-engine/internal/payment/dbstore"
+	paymenthandler "github.com/michaeltansy/billing-engine/internal/payment/handler"
+	paymentservice "github.com/michaeltansy/billing-engine/internal/payment/service"
 )
 
 func main() {
@@ -55,10 +58,17 @@ func main() {
 		DelinquencySvc: delinquencySvc,
 	}, delinquencyhandler.WithTimeoutOptions(cfg.API["delinquency"].ReqTimeoutInMS))
 
+	paymentStore := paymentdbstore.NewDBStore(connManager.GetDB())
+	paymentSvc := paymentservice.NewService(paymentStore, systemClock)
+	paymentHandler := paymenthandler.NewHandler(paymenthandler.Dependencies{
+		PaymentSvc: paymentSvc,
+	}, paymenthandler.WithTimeoutOptions(cfg.API["payment"].ReqTimeoutInMS))
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(outstandinghandler.Route, outstandingHandler.Handle)
 	mux.HandleFunc(delinquencyhandler.Route, delinquencyHandler.Handle)
+	mux.HandleFunc(paymenthandler.Route, paymentHandler.Handle)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
