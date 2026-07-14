@@ -130,5 +130,6 @@ Postgres details never leak upward.
 ```sh
 cp files/config.yaml.example config.yaml        
 export $(grep -v '^#' .env | xargs)
-go run ./cmd/app
+
+docker compose up --build
 ```
