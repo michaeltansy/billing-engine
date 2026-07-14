@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    container_name: billing-engine-app
+    depends_on:
+      - db
+    environment:
+      CONFIG_PATH: "/app/files/config/app/config.yaml"
+    volumes:
+      - ./files/config:/app/files/config
+
+  db:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    container_name: billing-db
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: toor
+      POSTGRES_DB: billing
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  db_data:

@@ -38,8 +38,13 @@ func (cm *defaultConnManager) Close() error {
 // each request borrows a connection and returns it when done. The pool bounds
 // how many payment requests can hit Postgres at once, while the database
 // enforces correctness (see the unique constraints in sql/init.sql).
-func NewConnManager(host, dbName, user, password string, options ...Option) (ConnManager, error) {
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("host=%s user=%s dbname=%s password=%s sslmode=disable", host, user, dbName, password))
+func NewConnManager(host string, port int, dbName, user, password string, options ...Option) (ConnManager, error) {
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s dbname=%s password=%s sslmode=disable TimeZone=UTC",
+		host, port, user, dbName, password,
+	)
+
+	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
